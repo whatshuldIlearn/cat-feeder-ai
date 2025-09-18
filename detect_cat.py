@@ -36,12 +36,25 @@ import sys
 from pathlib import Path
 
 import torch
+import requests
+
+import warnings
+import logging
+
+
+# Disable YOLOv5 info logging
+import utils.general as general
+general.LOGGER.setLevel(logging.ERROR)
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
-ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from ultralytics.utils.plotting import Annotator, colors, save_one_box
 
@@ -253,18 +266,20 @@ def run(
 
                 # Write results
                 found_cat = False
-                for *xyxy, conf, cls in reversed(det):
-                    c = int(cls)
-                    label = names[c]
+                if det is not None and len(det) > 0:
+                    for *xyxy, conf, cls in reversed(det):
+                        c = int(cls)
 
-                    if label.lower() == "cat":
-                        found_cat = True
+                        if c == 15:
+                            print("Cat Detected")
+                            found_cat = True
+                            break
 
-# After loop, print only once per image
-                    if found_cat:
-                        print("Cat detected")
-                    else:
-                        print("No cat detected")
+                    if not found_cat:
+                        print("No Cat Detected")
+                
+
+
 
 
                     if save_csv:
@@ -281,44 +296,52 @@ def run(
                         with open(f"{txt_path}.txt", "a") as f:
                             f.write(("%g " * len(line)).rstrip() % line + "\n")
 
-                    if save_img or save_crop or view_img:  # Add bbox to image
-                        c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
-                        annotator.box_label(xyxy, label, color=colors(c, True))
-                    if save_crop:
-                        save_one_box(xyxy, imc, file=save_dir / "crops" / names[c] / f"{p.stem}.jpg", BGR=True)
+                def notify_esp32(cat_found):
+                    if cat_found:
+                        client.publish(MQTT_TOPIC, "open")
+                        print("Cat detected -> MQTT: open")
+                    else:
+                        client.publish(MQTT_TOPIC, "idle")
+                        print("No cat detected -> MQTT: idle")
+
+                    #if save_img or save_crop or view_img:  # Add bbox to image
+                    #    c = int(cls)  # integer class
+                    #    label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
+                    #    annotator.box_label(xyxy, label, color=colors(c, True))
+                    #if save_crop:
+                    #    save_one_box(xyxy, imc, file=save_dir / "crops" / names[c] / f"{p.stem}.jpg", BGR=True)
 
             # Stream results
-            im0 = annotator.result()
-            if view_img:
-                if platform.system() == "Linux" and p not in windows:
-                    windows.append(p)
-                    cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
-                    cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
-                cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+            #im0 = annotator.result()
+            #if view_img:
+            #    if platform.system() == "Linux" and p not in windows:
+            #        windows.append(p)
+            #        cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
+            #        cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
+            #    cv2.imshow(str(p), im0)
+            #    cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
-            if save_img:
-                if dataset.mode == "image":
-                    cv2.imwrite(save_path, im0)
-                else:  # 'video' or 'stream'
-                    if vid_path[i] != save_path:  # new video
-                        vid_path[i] = save_path
-                        if isinstance(vid_writer[i], cv2.VideoWriter):
-                            vid_writer[i].release()  # release previous video writer
-                        if vid_cap:  # video
-                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        else:  # stream
-                            fps, w, h = 30, im0.shape[1], im0.shape[0]
-                        save_path = str(Path(save_path).with_suffix(".mp4"))  # force *.mp4 suffix on results videos
-                        vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-                    vid_writer[i].write(im0)
+            #if save_img:
+            #    if dataset.mode == "image":
+            #        cv2.imwrite(save_path, im0)
+            #    else:  # 'video' or 'stream'
+            #        if vid_path[i] != save_path:  # new video
+            #            vid_path[i] = save_path
+            #            if isinstance(vid_writer[i], cv2.VideoWriter):
+            #                vid_writer[i].release()  # release previous video writer
+            #            if vid_cap:  # video
+            #                fps = vid_cap.get(cv2.CAP_PROP_FPS)
+            #                w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            #                h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            #            else:  # stream
+            #                fps, w, h = 30, im0.shape[1], im0.shape[0]
+            #            save_path = str(Path(save_path).with_suffix(".mp4"))  # force *.mp4 suffix on results videos
+            #            vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+            #        vid_writer[i].write(im0)
 
         # Print time (inference-only)
-        LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1e3:.1f}ms")
+        #LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1e3:.1f}ms")
 
     # Print results
     t = tuple(x.t / seen * 1e3 for x in dt)  # speeds per image
