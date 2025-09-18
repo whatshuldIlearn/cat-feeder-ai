@@ -30,25 +30,21 @@ Usage - formats:
 
 import argparse
 import csv
+import logging
 import os
-import platform
 import sys
+import warnings
 from pathlib import Path
 
 import torch
-import requests
-
-import warnings
-import logging
-
 
 # Disable YOLOv5 info logging
 import utils.general as general
+
 general.LOGGER.setLevel(logging.ERROR)
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
-
 
 
 FILE = Path(__file__).resolve()
@@ -56,7 +52,7 @@ ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 
-from ultralytics.utils.plotting import Annotator, colors, save_one_box
+from ultralytics.utils.plotting import Annotator
 
 from models.common import DetectMultiBackend
 from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadScreenshots, LoadStreams
@@ -68,7 +64,6 @@ from utils.general import (
     check_imshow,
     check_requirements,
     colorstr,
-    cv2,
     increment_path,
     non_max_suppression,
     print_args,
@@ -183,18 +178,18 @@ def run(
     # Dataloader
     bs = 1  # batch_size
     if webcam:
-        view_img = check_imshow(warn=True)
+        check_imshow(warn=True)
         dataset = LoadStreams(source, img_size=imgsz, stride=stride, auto=pt, vid_stride=vid_stride)
         bs = len(dataset)
     elif screenshot:
         dataset = LoadScreenshots(source, img_size=imgsz, stride=stride, auto=pt)
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt, vid_stride=vid_stride)
-    vid_path, vid_writer = [None] * bs, [None] * bs
+    _vid_path, _vid_writer = [None] * bs, [None] * bs
 
     # Run inference
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
-    seen, windows, dt = 0, [], (Profile(device=device), Profile(device=device), Profile(device=device))
+    seen, _windows, dt = 0, [], (Profile(device=device), Profile(device=device), Profile(device=device))
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -249,12 +244,12 @@ def run(
                 p, im0, frame = path, im0s.copy(), getattr(dataset, "frame", 0)
 
             p = Path(p)  # to Path
-            save_path = str(save_dir / p.name)  # im.jpg
+            str(save_dir / p.name)  # im.jpg
             txt_path = str(save_dir / "labels" / p.stem) + ("" if dataset.mode == "image" else f"_{frame}")  # im.txt
             s += "{:g}x{:g} ".format(*im.shape[2:])  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            imc = im0.copy() if save_crop else im0  # for save_crop
-            annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+            im0.copy() if save_crop else im0  # for save_crop
+            Annotator(im0, line_width=line_thickness, example=str(names))
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
@@ -277,10 +272,6 @@ def run(
 
                     if not found_cat:
                         print("No Cat Detected")
-                
-
-
-
 
                     if save_csv:
                         write_to_csv(p.name, label, confidence_str)
@@ -304,16 +295,16 @@ def run(
                         client.publish(MQTT_TOPIC, "idle")
                         print("No cat detected -> MQTT: idle")
 
-                    #if save_img or save_crop or view_img:  # Add bbox to image
+                    # if save_img or save_crop or view_img:  # Add bbox to image
                     #    c = int(cls)  # integer class
                     #    label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
                     #    annotator.box_label(xyxy, label, color=colors(c, True))
-                    #if save_crop:
+                    # if save_crop:
                     #    save_one_box(xyxy, imc, file=save_dir / "crops" / names[c] / f"{p.stem}.jpg", BGR=True)
 
             # Stream results
-            #im0 = annotator.result()
-            #if view_img:
+            # im0 = annotator.result()
+            # if view_img:
             #    if platform.system() == "Linux" and p not in windows:
             #        windows.append(p)
             #        cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
@@ -322,7 +313,7 @@ def run(
             #    cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
-            #if save_img:
+            # if save_img:
             #    if dataset.mode == "image":
             #        cv2.imwrite(save_path, im0)
             #    else:  # 'video' or 'stream'
@@ -341,7 +332,7 @@ def run(
             #        vid_writer[i].write(im0)
 
         # Print time (inference-only)
-        #LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1e3:.1f}ms")
+        # LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1e3:.1f}ms")
 
     # Print results
     t = tuple(x.t / seen * 1e3 for x in dt)  # speeds per image
