@@ -1,7 +1,8 @@
 import os
-import time
 import subprocess
 import sys
+import time
+
 import paho.mqtt.client as mqtt
 
 # 🔹 Use your HiveMQ Cloud broker, not the free public one
@@ -13,7 +14,7 @@ MQTT_TOPIC = "cat/feeder"
 
 client = mqtt.Client()
 client.username_pw_set(MQTT_USER, MQTT_PASS)
-client.tls_set()   # HiveMQ Cloud requires TLS
+client.tls_set()  # HiveMQ Cloud requires TLS
 client.connect(MQTT_BROKER, MQTT_PORT, 60)
 
 # Folder where new images arrive
@@ -36,15 +37,23 @@ while True:
 
             # Run YOLO detect.py on this file
             result = subprocess.run(
-                [sys.executable, "detect_cat.py",
-                "--source", filepath,
-                "--weights", "yolov5s.pt",
-                "--device", "cpu",
-                "--project", "runs/detect",
-                "--name", "results",
-                "--exist-ok"],
+                [
+                    sys.executable,
+                    "detect_cat.py",
+                    "--source",
+                    filepath,
+                    "--weights",
+                    "yolov5s.pt",
+                    "--device",
+                    "cpu",
+                    "--project",
+                    "runs/detect",
+                    "--name",
+                    "results",
+                    "--exist-ok",
+                ],
                 capture_output=True,
-                text=True
+                text=True,
             )
 
             lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
