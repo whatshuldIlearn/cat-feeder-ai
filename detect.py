@@ -260,12 +260,11 @@ def run(
                     if label.lower() == "cat":
                         found_cat = True
 
-# After loop, print only once per image
+                    # After loop, print only once per image
                     if found_cat:
                         print("Cat detected")
                     else:
                         print("No cat detected")
-
 
                     if save_csv:
                         write_to_csv(p.name, label, confidence_str)
